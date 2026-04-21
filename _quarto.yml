@@ -1,0 +1,19 @@
+project:
+  type: default
+  output-dir: _output
+  render:
+    - "notebooks/*.qmd"
+    - "README.md"
+
+execute:
+  freeze: auto
+
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: show
+    theme: cosmo
+    embed-resources: true
+
+jupyter: python3
