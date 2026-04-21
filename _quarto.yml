@@ -1,12 +1,12 @@
 project:
   type: default
-  output-dir: _output
   render:
     - "notebooks/*.qmd"
     - "README.md"
-
-execute:
-  freeze: auto
+  # Exclude huge trees from Quarto's resource scan — massively speeds up
+  # `quarto inspect` and `preview` in this repo (data/ is ~6GB, .venv/ is ~500MB).
+  resources: []
+  execute-dir: project
 
 format:
   html:
@@ -16,4 +16,4 @@ format:
     theme: cosmo
     embed-resources: true
 
-jupyter: python3
+jupyter: adaptive-learning-kt

@@ -1,0 +1,133 @@
+---
+title: "EdNet-KT1 EDA"
+format: html
+jupyter: python3
+execute:
+  cache: true
+---
+
+EdNet-KT1 の基礎統計と系列分布を確認する。実行前に以下を済ませておく:
+
+```bash
+make download                 # data/raw/KT1/ と questions.csv
+# or uv run python -m src.data.download --dest data/raw
+```
+
+サンプルは `src.data.sample.build_sample` で固定シード化。初回のみ parquet を生成し、2回目以降はキャッシュを読む。
+
+## 1. セットアップ
+
+```{python}
+from pathlib import Path
+import polars as pl
+
+from src.data.sample import build_sample
+
+# Resolve paths relative to the project root (the dir containing pyproject.toml),
+# not the notebook's own location — Positron's CWD depends on how it was launched.
+PROJECT_ROOT = next(
+    p for p in [Path.cwd(), *Path.cwd().parents] if (p / "pyproject.toml").exists()
+)
+RAW_DIR = PROJECT_ROOT / "data" / "raw"
+PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+N_USERS = 5_000
+SEED = 42
+
+assert RAW_DIR.exists(), f"raw data not found under {RAW_DIR} (run `make download` first)"
+```
+
+## 2. サンプル構築 / ロード
+
+```{python}
+result = build_sample(
+    RAW_DIR,
+    n_users=N_USERS,
+    seed=SEED,
+    processed_dir=PROCESSED_DIR,
+)
+df = result.df
+print(f"users = {result.n_users:,}   rows = {result.n_rows:,}")
+print(f"cache = {result.path}")
+df.head()
+```
+
+## 3. スキーマ & 基本統計
+
+```{python}
+df.schema
+```
+
+```{python}
+df.describe()
+```
+
+## 4. ユーザごとの系列長分布
+
+```{python}
+seq_lens = df.group_by("user_id").agg(pl.len().alias("n"))
+seq_lens["n"].describe()
+```
+
+```{python}
+# TODO: matplotlib/altair で系列長ヒストグラムを可視化
+```
+
+## 5. 問題ごとの正答率分布
+
+```{python}
+q_stats = (
+    df.group_by("question_id")
+    .agg(
+        pl.len().alias("n_attempts"),
+        pl.col("correct").mean().alias("acc"),
+    )
+    .sort("n_attempts", descending=True)
+)
+q_stats.head()
+```
+
+```{python}
+# TODO: 正答率 vs 出題頻度の散布図、尾の長い分布かを確認
+```
+
+## 6. Part / タグの分布
+
+```{python}
+if "part" in df.columns:
+    df.group_by("part").agg(
+        pl.len().alias("n"),
+        pl.col("correct").mean().alias("acc"),
+    ).sort("part")
+```
+
+```{python}
+# TODO: タグ展開 (df.explode("tags")) で上位タグ別の正答率を見る
+```
+
+## 7. 時系列(学習進行)と正答率
+
+```{python}
+# TODO: ユーザ内の出題順序(rank)と correct の関係を集計
+# expected: 序盤は診断問題が多く、後半になるほど個人適応が効いて正答率上昇、など
+```
+
+## 8. 所要時間 (elapsed_time) の分布
+
+```{python}
+df.select(pl.col("elapsed_time")).describe()
+```
+
+```{python}
+# TODO: 外れ値の扱い(0ms、1分以上など)をポリシーとして決める
+```
+
+## 9. KT モデル向け前処理の準備メモ
+
+- 系列長キャップ: 上位何%をカットするか
+- unknown question_id の扱い (questions.csv に無い qid があるか確認)
+- train/valid/test split の粒度 (ユーザ単位 vs 系列単位)
+- `tags` を concept として使うか、`question_id` のみでいくか
+
+```{python}
+# TODO: questions.csv に存在しない question_id の件数を数える
+```

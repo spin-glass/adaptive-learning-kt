@@ -24,3 +24,7 @@ mlruns/
 .env
 *.ipynb_checkpoints
 .vscode/
+
+/.quarto/
+**/*.quarto_ipynb
+.envrc
