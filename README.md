@@ -2,7 +2,7 @@
 
 > テスト対策アプリで、次に何を出せば一番効果的か？
 
-EdNet の実データ（78万ユーザー・1.3億インタラクション）を使い、**知識推定 → 出題戦略 → 類題検索** の3層パイプラインを設計・実装するプロジェクト。
+EdNet の実データ（78万ユーザー・1.3億インタラクション）を使い、**Knowledge Tracing → Item Selection** のパイプラインを設計・実装するプロジェクト。
 
 ## 背景
 
@@ -24,7 +24,7 @@ EdNet の実データ（78万ユーザー・1.3億インタラクション）を
 
 実際にデータを見ると、このばらつきは明らかだった。
 
-![同じ学習者でもPartごとの正答率はこれだけ違う](docs/fig-skill-gap.png)
+![同じ学習者でもPartごとの正答率はこれだけ違う](assets/fig-skill-gap.png)
 
 学習者Cは文法90%だが応答45%。学習者Gは写真描写78%だが説明文11%。**同じ人の中でもスキルごとの得意・不得意がこれだけ違う**のに、全員に同じ問題を順番に出しても意味がない。
 
@@ -32,35 +32,31 @@ Knowledge Tracing (KT) は、解答履歴からスキルごとの習熟度がど
 
 ## Architecture
 
+Computerized Adaptive Testing (CAT) の枠組みに沿って、2段階のパイプラインで構成する。
+
 ```
 学習者の解答ログ
        │
        ▼
 ┌─────────────────────────────────────────────────────┐
-│            Adaptive Learning Pipeline                │
 │                                                      │
-│  Layer 1-2: 知識状態の推定 (Knowledge Tracing)       │
+│  Knowledge Tracing — 知識状態の推定                   │
 │  ┌─────────────┐  ┌──────────────────────────────┐  │
 │  │ IRT 2PL     │  │ DKT / SAKT / SimpleKT        │  │
 │  │ BKT         │  │ (PyTorch Lightning)           │  │
-│  │ (説明可能性)│  │ (予測精度 AUC 0.75-0.78)     │  │
+│  │ (説明可能性)│  │ (予測精度)                    │  │
 │  └─────────────┘  └──────────────────────────────┘  │
 │           │                    │                     │
 │           ▼                    ▼                     │
-│  Layer 3: 出題戦略 (Item Selection Policy)           │
+│  Item Selection — 出題戦略                           │
 │  ┌───────────────────────────────────────────────┐  │
 │  │ Random / Difficulty Matching / Thompson Smpl   │  │
 │  └───────────────────────────────────────────────┘  │
-│                        │                             │
-│                        ▼                             │
-│  Layer 4: 類題検索 (Item Retrieval)                  │
-│  ┌───────────────────────────────────────────────┐  │
-│  │ KT item embedding → Two-Tower → ANN (FAISS)   │  │
-│  └───────────────────────────────────────────────┘  │
+│                                                      │
 └─────────────────────────────────────────────────────┘
        │
        ▼
-  最適な「次の一問」
+  次の一問
 ```
 
 ## Notebooks
@@ -71,7 +67,6 @@ Knowledge Tracing (KT) は、解答履歴からスキルごとの習熟度がど
 | [02](notebooks/02-irt-bkt.qmd) | 学習者の「知識」を測れるか？ | PyMC (IRT 2PL), pyBKT | ベイズ推論、古典モデルの説明可能性 |
 | [03](notebooks/03-deep-kt.qmd) | Deep Learning で精度は上がるか？ | PyTorch Lightning, MLflow | DL実装力、実験管理 |
 | [04](notebooks/04-item-selection.qmd) | 「次の一問」をどう選ぶか？ | シミュレーション | KTの出口設計、出題ポリシー比較 |
-| [05](notebooks/05-item-retrieval.qmd) | 似た問題をどう見つけるか？ | Two-Tower, FAISS | レコメンドシステム設計 |
 
 ## Implementation Phases
 
@@ -81,7 +76,6 @@ Knowledge Tracing (KT) は、解答履歴からスキルごとの習熟度がど
 | 1 | `src/features/` + 02-irt-bkt.qmd — 前処理パイプライン + 古典モデル | 次に着手 |
 | 2 | `src/models/` + `src/training/` + 03-deep-kt.qmd — 深層KTモデル比較 | |
 | 3 | `src/policy/` + 04-item-selection.qmd — 出題戦略シミュレーション | |
-| 4 | `src/retrieval/` + 05-item-retrieval.qmd — Two-Tower 類題検索 | |
 
 ## Quick Start
 
@@ -107,8 +101,7 @@ make render FILE=notebooks/01-eda.qmd      # Quarto → HTML
 │   │   └── simplekt.py  # SimpleKT
 │   ├── training/        # PyTorch Lightning modules
 │   ├── eval/            # AUC, calibration, metrics
-│   ├── policy/          # 出題戦略 (random, difficulty matching, Thompson sampling)
-│   └── retrieval/       # Two-Tower embedding + ANN (FAISS)
+│   └── policy/          # Item Selection (random, difficulty matching, Thompson sampling)
 ├── tests/               # pytest
 ├── data/{raw,processed} # gitignore
 └── mlruns/              # MLflow (gitignore)
@@ -129,7 +122,6 @@ make render FILE=notebooks/01-eda.qmd      # Quarto → HTML
 | 古典モデル | PyMC (IRT 2PL), pyBKT |
 | 深層学習 | PyTorch, Lightning |
 | 実験管理 | MLflow |
-| 類題検索 | FAISS |
 | 環境 | Python 3.11, uv, Quarto |
 
 ## References
@@ -144,6 +136,10 @@ make render FILE=notebooks/01-eda.qmd      # Quarto → HTML
 - Piech et al. (2015). *Deep Knowledge Tracing*. NeurIPS.
 - Pandey & Karypis (2019). *A Self-Attentive model for Knowledge Tracing*. EDM.
 - Liu et al. (2023). *SimpleKT: A Simple But Tough-to-Beat Baseline for Knowledge Tracing*. ICLR.
+
+**出題戦略 (04-item-selection)**
+- Clement et al. (2015). *Multi-Armed Bandits for Intelligent Tutoring Systems*. JEDM.
+- Ghosh et al. (2021). *BOBCAT: Bilevel Optimization-Based Computerized Adaptive Testing*. IJCAI.
 
 ## License
 

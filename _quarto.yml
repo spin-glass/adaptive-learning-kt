@@ -1,7 +1,8 @@
 project:
   type: website
+  output-dir: docs
   render:
-    - "notebooks/*.qmd"
+    - "notebooks/01-eda.qmd"
     - "README.md"
   # Exclude huge trees from Quarto's resource scan — massively speeds up
   # `quarto inspect` and `preview` in this repo (data/ is ~6GB, .venv/ is ~500MB).
@@ -16,8 +17,11 @@ website:
         href: README.md
       - text: "01 EDA"
         href: notebooks/01-eda.qmd
-      - text: "02 IRT+BKT"
-        href: notebooks/02-irt-bkt.qmd
+
+execute:
+  freeze: auto
+  cache: true
+  warning: false
 
 format:
   html:
