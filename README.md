@@ -1,59 +1,150 @@
-# adaptive-learning-kt
+# Adaptive Learning with Knowledge Tracing
 
-EdNet-KT1 データセットを用いた Knowledge Tracing 系モデルの比較実装。
+> テスト対策アプリで、次に何を出せば一番効果的か？
 
-## Setup
+EdNet の実データ（78万ユーザー・1.3億インタラクション）を使い、**知識推定 → 出題戦略 → 類題検索** の3層パイプラインを設計・実装するプロジェクト。
 
-```bash
-uv sync
+## 背景
+
+```
+従来の学習アプリ                    アダプティブラーニング
+─────────────────                   ─────────────────────
+全員に同じ問題を順番に出す          学習者ごとの知識状態を推定し出題
+
+学習者A ─→ Q1, Q2, Q3, Q4 ...      学習者A ─→ 文法が苦手
+学習者B ─→ Q1, Q2, Q3, Q4 ...        → 文法の中難度問題を優先
+学習者C ─→ Q1, Q2, Q3, Q4 ...      学習者B ─→ リスニングが苦手
+     (一律)                           → リスニング強化問題を出題
+
+結果: 簡単すぎ/難しすぎの問題に      結果: 各学習者の「伸びしろ」に
+      時間を浪費                          集中して学習できる
 ```
 
-Python 3.11 前提。依存追加は `uv add <pkg>`。
+問題の本質は **学習者ごとにスキル別の知識状態が異なるのに、それを無視して一律に出題していること** にある。正答率だけで難易度を調整しても、「文法は得意だがリスニングは苦手」という構造は捉えられない。
 
-## Data pipeline
+実際にデータを見ると、このばらつきは明らかだった。
 
-### 1. 生データをダウンロード
+![同じ学習者でもPartごとの正答率はこれだけ違う](docs/fig-skill-gap.png)
 
-```bash
-make download
-# or:
-uv run python -m src.data.download --dest data/raw
+学習者Cは文法90%だが応答45%。学習者Gは写真描写78%だが説明文11%。**同じ人の中でもスキルごとの得意・不得意がこれだけ違う**のに、全員に同じ問題を順番に出しても意味がない。
+
+Knowledge Tracing (KT) は、解答履歴からスキルごとの習熟度がどう変化しているかを推定する技術で、KT の出力があれば **Zone of Proximal Development** — 難しすぎず易しすぎないちょうどいい領域 — に問題を合わせられる。
+
+## Architecture
+
+```
+学習者の解答ログ
+       │
+       ▼
+┌─────────────────────────────────────────────────────┐
+│            Adaptive Learning Pipeline                │
+│                                                      │
+│  Layer 1-2: 知識状態の推定 (Knowledge Tracing)       │
+│  ┌─────────────┐  ┌──────────────────────────────┐  │
+│  │ IRT 2PL     │  │ DKT / SAKT / SimpleKT        │  │
+│  │ BKT         │  │ (PyTorch Lightning)           │  │
+│  │ (説明可能性)│  │ (予測精度 AUC 0.75-0.78)     │  │
+│  └─────────────┘  └──────────────────────────────┘  │
+│           │                    │                     │
+│           ▼                    ▼                     │
+│  Layer 3: 出題戦略 (Item Selection Policy)           │
+│  ┌───────────────────────────────────────────────┐  │
+│  │ Random / Difficulty Matching / Thompson Smpl   │  │
+│  └───────────────────────────────────────────────┘  │
+│                        │                             │
+│                        ▼                             │
+│  Layer 4: 類題検索 (Item Retrieval)                  │
+│  ┌───────────────────────────────────────────────┐  │
+│  │ KT item embedding → Two-Tower → ANN (FAISS)   │  │
+│  └───────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────┘
+       │
+       ▼
+  最適な「次の一問」
 ```
 
-`data/raw/KT1/` 以下に約780k件のユーザー別 CSV が展開される。
+## Notebooks
 
-### 2. pyKT 標準前処理を適用 (オプション)
+| # | 問い | 手法 | 示す能力 |
+|---|------|------|---------|
+| [01](notebooks/01-eda.qmd) | 学習者はどう行動しているか？ | Polars, Matplotlib | ドメイン理解、データリテラシー |
+| [02](notebooks/02-irt-bkt.qmd) | 学習者の「知識」を測れるか？ | PyMC (IRT 2PL), pyBKT | ベイズ推論、古典モデルの説明可能性 |
+| [03](notebooks/03-deep-kt.qmd) | Deep Learning で精度は上がるか？ | PyTorch Lightning, MLflow | DL実装力、実験管理 |
+| [04](notebooks/04-item-selection.qmd) | 「次の一問」をどう選ぶか？ | シミュレーション | KTの出口設計、出題ポリシー比較 |
+| [05](notebooks/05-item-retrieval.qmd) | 似た問題をどう見つけるか？ | Two-Tower, FAISS | レコメンドシステム設計 |
 
-[pyKT-toolkit](https://github.com/pykt-team/pykt-toolkit) を**参照用**として別ディレクトリに clone し、前処理のみ実行して CSV を取り込む。pyKT 本体はこのプロジェクトの依存には含めない。
+## Implementation Phases
+
+| Phase | 内容 | 状態 |
+|-------|------|------|
+| 0 | 環境構築 + EDA | **完了** |
+| 1 | `src/features/` + 02-irt-bkt.qmd — 前処理パイプライン + 古典モデル | 次に着手 |
+| 2 | `src/models/` + `src/training/` + 03-deep-kt.qmd — 深層KTモデル比較 | |
+| 3 | `src/policy/` + 04-item-selection.qmd — 出題戦略シミュレーション | |
+| 4 | `src/retrieval/` + 05-item-retrieval.qmd — Two-Tower 類題検索 | |
+
+## Quick Start
 
 ```bash
-make ref-pykt-clone           # ~/reference-pykt に clone
-make ref-pykt-venv            # そこに Python 3.9 の独立 venv を作成
-make ref-pykt-preprocess      # data/raw/KT1/ をリンクして pyKT の前処理実行
-make ref-pykt-import-processed # 処理済み CSV を data/processed/ednet/ にコピー
+uv sync                                   # 依存インストール
+make download                              # EdNet-KT1 データ取得
+make test                                  # pytest
+make render FILE=notebooks/01-eda.qmd      # Quarto → HTML
 ```
 
-`Makefile` の各ターゲットは冪等で、失敗時に途中から再実行可能。
+## Project Structure
 
-## Run notebooks
-
-Positron で `notebooks/*.qmd` を開き、セル単位で実行。
-
-全体レンダー:
-```bash
-make test        # pytest
-uv run quarto render
+```
+├── notebooks/           # Quarto (.qmd) — 分析ノートブック
+├── src/
+│   ├── data/            # ダウンロード・ローダ・サンプリング
+│   ├── features/        # 前処理パイプライン (elapsed_time クリッピング、系列長フィルタ等)
+│   ├── models/
+│   │   ├── irt.py       # IRT 2PL (PyMC)
+│   │   ├── bkt.py       # BKT wrapper (pyBKT)
+│   │   ├── dkt.py       # Deep Knowledge Tracing (LSTM)
+│   │   ├── sakt.py      # Self-Attentive KT
+│   │   └── simplekt.py  # SimpleKT
+│   ├── training/        # PyTorch Lightning modules
+│   ├── eval/            # AUC, calibration, metrics
+│   ├── policy/          # 出題戦略 (random, difficulty matching, Thompson sampling)
+│   └── retrieval/       # Two-Tower embedding + ANN (FAISS)
+├── tests/               # pytest
+├── data/{raw,processed} # gitignore
+└── mlruns/              # MLflow (gitignore)
 ```
 
-## Structure
+## Dataset
 
-- `notebooks/` - EDA / 実験ノート (.qmd、Claude Code は編集しない)
-- `src/` - 再利用可能モジュール (モデル / データ / 学習 / 評価)
-  - `src/data/` - ダウンロード・ローダ
-  - `src/models/` - IRT / BKT / DKT / SAKT / SimpleKT
-  - `src/training/` - PyTorch Lightning モジュール
-  - `src/eval/` - AUC / Early & Late fusion
-- `tests/` - pytest 単体テスト
-- `data/raw/` - 生データ (gitignore)
-- `data/processed/` - pyKT 出力の取り込み先 (gitignore)
-- `mlruns/` - MLflow ログ (gitignore)
+**EdNet-KT1**: ~780K users, ~130M interactions, 188 skill tags, TOEIC Part 1–7.
+本プロジェクトでは 5,000 ユーザーをサンプリング (~550K rows)。
+
+[Paper](https://arxiv.org/abs/2002.08038) / [GitHub](https://github.com/riiid/ednet)
+
+## Tech Stack
+
+| カテゴリ | ライブラリ |
+|---------|-----------|
+| データ処理 | Polars, Matplotlib |
+| 古典モデル | PyMC (IRT 2PL), pyBKT |
+| 深層学習 | PyTorch, Lightning |
+| 実験管理 | MLflow |
+| 類題検索 | FAISS |
+| 環境 | Python 3.11, uv, Quarto |
+
+## References
+
+**データセット**
+- Choi et al. (2020). *EdNet: A Large-Scale Hierarchical Dataset in Education*. L@S. [arXiv:2002.08038](https://arxiv.org/abs/2002.08038)
+
+**古典モデル (02-irt-bkt)**
+- Corbett & Anderson (1994). *Knowledge Tracing: Modeling the Acquisition of Procedural Knowledge*. UMUAI.
+
+**深層モデル (03-deep-kt)**
+- Piech et al. (2015). *Deep Knowledge Tracing*. NeurIPS.
+- Pandey & Karypis (2019). *A Self-Attentive model for Knowledge Tracing*. EDM.
+- Liu et al. (2023). *SimpleKT: A Simple But Tough-to-Beat Baseline for Knowledge Tracing*. ICLR.
+
+## License
+
+MIT

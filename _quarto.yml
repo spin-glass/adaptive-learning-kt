@@ -1,5 +1,5 @@
 project:
-  type: default
+  type: website
   render:
     - "notebooks/*.qmd"
     - "README.md"
@@ -8,12 +8,22 @@ project:
   resources: []
   execute-dir: project
 
+website:
+  title: "Adaptive Learning KT"
+  navbar:
+    left:
+      - text: "Home"
+        href: README.md
+      - text: "01 EDA"
+        href: notebooks/01-eda.qmd
+      - text: "02 IRT+BKT"
+        href: notebooks/02-irt-bkt.qmd
+
 format:
   html:
     toc: true
     toc-depth: 3
     code-fold: show
     theme: cosmo
-    embed-resources: true
 
 jupyter: adaptive-learning-kt

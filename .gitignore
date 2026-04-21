@@ -8,7 +8,13 @@ __pycache__/
 
 # Quarto
 _output/
+_site/
 .quarto/
+notebooks/.jupyter_cache/
+
+# Rendered HTML (local preview)
+CLAUDE.html
+CLAUDE_files/
 
 # Data (raw files are too large for git)
 data/raw/*

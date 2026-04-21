@@ -1,14 +1,16 @@
 # Adaptive Learning KT - Project Context
 
 ## 目的
-EdNet-KT1データセットを用いたKnowledge Tracing系モデルの比較実装。
-ポートフォリオ用プロジェクト (spin-glass/adaptive-learning-kt)。
+「テスト対策アプリはどうすれば学習者の得点を最大化できるか？」を問いの軸に、
+EdNet-KT1データセットを用いたアダプティブラーニング・パイプラインを設計・実装する。
+知識推定 (KT) → 出題戦略 → 類題検索の3層を一気通貫で構築。
 
 ## ディレクトリの役割
 - `notebooks/*.qmd` - 対話的EDA・分析 (Positronで手動実行が原則)
 - `src/` - 再利用可能なモジュール (Claude Codeが自由に編集可)
 - `tests/` - pytestによる単体テスト
 - `data/raw/` - 生データ (git管理外)
+- `data/processed/` - Parquetキャッシュ (git管理外)
 - `_output/` - Quartoレンダー結果 (gitignore)
 
 ## Claude Codeへのルール
@@ -19,17 +21,27 @@ EdNet-KT1データセットを用いたKnowledge Tracing系モデルの比較実
 - PyTorchコードは `device` パラメータを受け取れる形に
 
 ## 主要ライブラリ
-- pyKT: KTモデルの横断比較ツールキット
 - pyBKT: Bayesian Knowledge Tracingベースライン
-- py-irt: IRT (Item Response Theory) ベースライン
+- PyMC: IRT 2PL のベイズ推定
+- PyTorch + Lightning: DKT / SAKT / SimpleKT
+- MLflow: 実験管理
 - polars: 大規模データは pandas より polars を優先
-- mlflow: 実験管理
 
-## パイプライン
+## パイプライン (Notebooks)
 1. `notebooks/01-eda.qmd` - EdNet-KT1のEDA
-2. `notebooks/02-baseline.qmd` - IRT + BKT
-3. `notebooks/03-dkt.qmd` - DKT/SAKT/SimpleKT比較
-4. `notebooks/04-policy.qmd` - 出題戦略シミュレーション
+2. `notebooks/02-irt-bkt.qmd` - IRT 2PL + BKT ベースライン
+3. `notebooks/03-deep-kt.qmd` - DKT / SAKT / SimpleKT 比較
+4. `notebooks/04-item-selection.qmd` - 出題戦略シミュレーション
+5. `notebooks/05-item-retrieval.qmd` - Two-Tower 類題検索 (設計+プロトタイプ)
+
+## src/ モジュール構成
+- `src/data/` - ダウンロード・ローダ・サンプリング
+- `src/features/` - 前処理・特徴量エンジニアリング
+- `src/models/` - IRT / BKT / DKT / SAKT / SimpleKT
+- `src/training/` - PyTorch Lightning モジュール
+- `src/eval/` - AUC / calibration / metrics
+- `src/policy/` - 出題戦略 (random, difficulty matching, Thompson sampling)
+- `src/retrieval/` - Two-Tower + ANN (FAISS)
 
 ## スタイル
 - コメントは日本語可、コード内識別子は英語
