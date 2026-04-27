@@ -1,5 +1,6 @@
 ---
-title: "Adaptive Learning with Knowledge Tracing"
+title: ""
+pagetitle: "Adaptive Learning with Knowledge Tracing"
 ---
 
 {{< include README.md >}}
